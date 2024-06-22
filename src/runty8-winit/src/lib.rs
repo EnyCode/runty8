@@ -2,6 +2,7 @@
 
 //! Compatibility layer for Runty8 crates that need to leverage winit.
 
+use gilrs::{ev::Event as GamepadEvent, Button};
 use runty8_core::{Event, InputEvent, Key, KeyState, KeyboardEvent, MouseButton, MouseEvent};
 use winit::dpi::{LogicalPosition, LogicalSize};
 
@@ -24,7 +25,7 @@ impl ScreenInfo {
     }
 }
 
-/// Extension trait to convert a [`winit::event::Event`] into a [`runty8_core::Event`].
+/// Extension trait to convert a [`winit::event::Event`] or a [`gilrs::ev::Event`] into a [`runty8_core::Event`].
 pub trait Runty8EventExt: Sized {
     /// Convert a [`winit::event::Event`] into a [`runty8_core::Event`].
     fn from_winit(
@@ -32,6 +33,8 @@ pub trait Runty8EventExt: Sized {
         current_time: &mut f64,
         screen_info: &mut ScreenInfo,
     ) -> Option<Self>;
+    /// Convert a [`gilrs::ev::Event`] into a [`runty8_core::Event`].
+    fn from_gilrs(event: GamepadEvent) -> Option<Self>;
 }
 
 impl Runty8EventExt for Event {
@@ -104,9 +107,28 @@ impl Runty8EventExt for Event {
             _ => None,
         }
     }
+
+    fn from_gilrs(event: GamepadEvent) -> Option<Event> {
+        match event.event {
+            gilrs::EventType::ButtonPressed(btn, _) => {
+                return KeyboardEvent::from_gilrs(btn, true)
+                    .map(InputEvent::Keyboard)
+                    .map(Event::Input)
+            }
+            gilrs::EventType::ButtonReleased(btn, _) => {
+                return KeyboardEvent::from_gilrs(btn, false)
+                    .map(InputEvent::Keyboard)
+                    .map(Event::Input)
+            }
+            gilrs::EventType::AxisChanged(_, _, _) => todo!(),
+            _ => (),
+        }
+        None
+    }
 }
 trait Runty8KeyboardEventExt: Sized {
     fn from_winit(input: winit::event::KeyboardInput) -> Option<Self>;
+    fn from_gilrs(input: Button, pressed: bool) -> Option<Self>;
 }
 
 impl Runty8KeyboardEventExt for KeyboardEvent {
@@ -119,6 +141,28 @@ impl Runty8KeyboardEventExt for KeyboardEvent {
             key: runty8_key,
             state,
         })
+    }
+
+    fn from_gilrs(input: Button, pressed: bool) -> Option<Self> {
+        match input {
+            Button::South => Some(Self {
+                key: Key::C,
+                state: if pressed {
+                    KeyState::Down
+                } else {
+                    KeyState::Up
+                },
+            }),
+            Button::East => Some(Self {
+                key: Key::X,
+                state: if pressed {
+                    KeyState::Down
+                } else {
+                    KeyState::Up
+                },
+            }),
+            _ => None,
+        }
     }
 }
 
