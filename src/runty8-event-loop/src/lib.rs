@@ -2,6 +2,7 @@
 
 //! Winit/Glow/Glutin powered event loop for Runty8 applications.
 
+use gilrs::Gilrs;
 use glow::HasContext;
 use runty8_core::Event;
 use runty8_winit::{Runty8EventExt as _, ScreenInfo};
@@ -26,6 +27,7 @@ pub fn event_loop(
     let mut screen_info = ScreenInfo::new(640.0, 640.0);
 
     let event_loop = EventLoop::new();
+    let mut gilrs = Gilrs::new().unwrap();
 
     let (window, gl, shader_version) = make_window_and_context(&event_loop, &screen_info);
     screen_info.scale_factor = winit_window(&window).scale_factor();
@@ -55,8 +57,14 @@ pub fn event_loop(
     // => Test it
     // gl::upload_pixels(&gl, texture, pico8.draw_data.buffer());
     event_loop.run(move |winit_event, _, control_flow| {
-        let event: Option<Event> =
+        let mut event: Option<Event> =
             Event::from_winit(&winit_event, &mut current_time, &mut screen_info);
+        if event.is_none() {
+            let next = gilrs.next_event();
+            if next.is_some() {
+                event = Event::from_gilrs(next.unwrap());
+            }
+        }
 
         if let Some(event) = event {
             let draw: &dyn Fn(&[u8], &mut ControlFlow) = &|pixels, _control_flow| {
