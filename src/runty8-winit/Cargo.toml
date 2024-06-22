@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+gilrs = "0.10.7"
 runty8-core = { path = "../runty8-core" }
 winit = "0.27"
 
