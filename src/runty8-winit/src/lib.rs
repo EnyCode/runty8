@@ -2,7 +2,7 @@
 
 //! Compatibility layer for Runty8 crates that need to leverage winit.
 
-use gilrs::{ev::Event as GamepadEvent, Button};
+use gilrs::{ev::Event as GamepadEvent, Axis, Button};
 use runty8_core::{Event, InputEvent, Key, KeyState, KeyboardEvent, MouseButton, MouseEvent};
 use winit::dpi::{LogicalPosition, LogicalSize};
 
@@ -111,16 +111,28 @@ impl Runty8EventExt for Event {
     fn from_gilrs(event: GamepadEvent) -> Option<Event> {
         match event.event {
             gilrs::EventType::ButtonPressed(btn, _) => {
-                return KeyboardEvent::from_gilrs(btn, true)
+                return KeyboardEvent::from_gilrs_button(btn, true)
                     .map(InputEvent::Keyboard)
                     .map(Event::Input)
             }
             gilrs::EventType::ButtonReleased(btn, _) => {
-                return KeyboardEvent::from_gilrs(btn, false)
+                return KeyboardEvent::from_gilrs_button(btn, false)
                     .map(InputEvent::Keyboard)
                     .map(Event::Input)
             }
-            gilrs::EventType::AxisChanged(_, _, _) => todo!(),
+            gilrs::EventType::AxisChanged(axis, value, _) => match axis {
+                gilrs::Axis::LeftStickX => {
+                    return KeyboardEvent::from_gilrs_axis(axis, value)
+                        .map(InputEvent::Keyboard)
+                        .map(Event::Input)
+                }
+                gilrs::Axis::LeftStickY => {
+                    return KeyboardEvent::from_gilrs_axis(axis, value)
+                        .map(InputEvent::Keyboard)
+                        .map(Event::Input)
+                }
+                _ => (),
+            },
             _ => (),
         }
         None
@@ -128,7 +140,8 @@ impl Runty8EventExt for Event {
 }
 trait Runty8KeyboardEventExt: Sized {
     fn from_winit(input: winit::event::KeyboardInput) -> Option<Self>;
-    fn from_gilrs(input: Button, pressed: bool) -> Option<Self>;
+    fn from_gilrs_button(input: Button, pressed: bool) -> Option<Self>;
+    fn from_gilrs_axis(input: Axis, value: f32) -> Option<Self>;
 }
 
 impl Runty8KeyboardEventExt for KeyboardEvent {
@@ -143,7 +156,7 @@ impl Runty8KeyboardEventExt for KeyboardEvent {
         })
     }
 
-    fn from_gilrs(input: Button, pressed: bool) -> Option<Self> {
+    fn from_gilrs_button(input: Button, pressed: bool) -> Option<Self> {
         match input {
             Button::South => Some(Self {
                 key: Key::C,
@@ -161,6 +174,43 @@ impl Runty8KeyboardEventExt for KeyboardEvent {
                     KeyState::Up
                 },
             }),
+            _ => None,
+        }
+    }
+
+    fn from_gilrs_axis(input: Axis, value: f32) -> Option<Self> {
+        match input {
+            Axis::LeftStickX => {
+                let mut state = KeyState::Down;
+                let key = if value > 0. {
+                    if value < 0.5 {
+                        state = KeyState::Up;
+                    }
+                    Key::RightArrow
+                } else if value < 0. {
+                    if value > -0.5 {
+                        state = KeyState::Up;
+                    }
+                    Key::LeftArrow
+                } else {
+                    return None;
+                };
+
+                Some(Self { key, state })
+            }
+            Axis::LeftStickY => {
+                let mut state = KeyState::Down;
+                let key = if value > 0.1 {
+                    Key::UpArrow
+                } else if value < 0.1 {
+                    Key::DownArrow
+                } else {
+                    // TODO: lift up
+                    return None;
+                };
+
+                Some(Self { key, state })
+            }
             _ => None,
         }
     }

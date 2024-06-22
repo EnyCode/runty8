@@ -59,11 +59,10 @@ pub fn event_loop(
     event_loop.run(move |winit_event, _, control_flow| {
         let mut event: Option<Event> =
             Event::from_winit(&winit_event, &mut current_time, &mut screen_info);
-        if event.is_none() {
-            let next = gilrs.next_event();
-            if next.is_some() {
-                event = Event::from_gilrs(next.unwrap());
-            }
+        let mut controller_event = None;
+        let next = gilrs.next_event();
+        if next.is_some() {
+            controller_event = Event::from_gilrs(next.unwrap());
         }
 
         if let Some(event) = event {
@@ -76,6 +75,17 @@ pub fn event_loop(
             let set_title: &dyn Fn(&str) = &|title| set_title(&window, title);
 
             on_event(event, control_flow, draw, set_title);
+        }
+        if let Some(controller_event) = controller_event {
+            let draw: &dyn Fn(&[u8], &mut ControlFlow) = &|pixels, _control_flow| {
+                draw(&gl, texture, pixels);
+                #[cfg(not(target_arch = "wasm32"))]
+                window.swap_buffers().unwrap();
+            };
+
+            let set_title: &dyn Fn(&str) = &|title| set_title(&window, title);
+
+            on_event(controller_event, control_flow, draw, set_title);
         }
     })
 }
